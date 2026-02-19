@@ -24,8 +24,6 @@ def _rows_to_markdown(headers: list[str], rows: list[list[str]]) -> str:
 
 def _build_prior_year_context(raw_rows: list[dict[str, str]], report_year: int) -> str:
     prior_year = report_year - 1
-    comparable_month_limit = get_completed_month_count(raw_rows, report_year)
-
     counts_by_month: dict[int, set[str]] = defaultdict(set)
     for row in raw_rows:
         if not is_s1_f1_form((row.get("formType") or "").strip()):
@@ -39,17 +37,14 @@ def _build_prior_year_context(raw_rows: list[dict[str, str]], report_year: int) 
         if filing_date.year != prior_year:
             continue
 
-        if filing_date.month > comparable_month_limit:
-            continue
-
         counts_by_month[filing_date.month].add(accession)
 
     month_pairs = [f"{month}:{len(counts_by_month.get(month, set()))}" for month in range(1, 13)]
-    comparable_total = sum(len(counts_by_month.get(month, set())) for month in range(1, 13))
+    prior_year_total = sum(len(counts_by_month.get(month, set())) for month in range(1, 13))
 
     return (
-        f"Prior-year trend context for {prior_year} (S-1/F-1, comparable months only through "
-        f"month {comparable_month_limit}): total={comparable_total}; monthly={', '.join(month_pairs)}"
+        f"Prior-year trend context for {prior_year} (S-1/F-1, full-year baseline): "
+        f"total={prior_year_total}; monthly={', '.join(month_pairs)}"
     )
 
 
