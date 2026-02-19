@@ -72,7 +72,7 @@ PYTHONPATH=src python -m edgar_report.main \
 
 ## Run with CSV (local proof-of-concept)
 
-The generated PDF now includes two table sections: one for the report year and one for the prior year, to help verify data continuity.
+The generated PDF now includes two table sections: one for the report year (completed-month logic) and one for the prior year (full 12 months), to help verify data continuity.
 
 ```bash
 PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026

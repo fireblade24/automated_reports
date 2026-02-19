@@ -33,7 +33,12 @@ def _parse_date(raw_date: str) -> date | None:
         return None
 
 
-def get_completed_month_count(raw_rows: List[Dict[str, str]], report_year: int) -> int:
+def get_completed_month_count(
+    raw_rows: List[Dict[str, str]], report_year: int, force_full_year: bool = False
+) -> int:
+    if force_full_year:
+        return 12
+
     today = date.today()
     if report_year < today.year:
         return 12
@@ -50,8 +55,10 @@ def get_completed_month_count(raw_rows: List[Dict[str, str]], report_year: int) 
     return max(months_with_data) if months_with_data else 0
 
 
-def _resolve_report_cutoff(raw_rows: List[Dict[str, str]], report_year: int) -> date:
-    completed_month_count = get_completed_month_count(raw_rows, report_year)
+def _resolve_report_cutoff(
+    raw_rows: List[Dict[str, str]], report_year: int, force_full_year: bool = False
+) -> date:
+    completed_month_count = get_completed_month_count(raw_rows, report_year, force_full_year=force_full_year)
     if completed_month_count <= 0:
         return date(report_year, 1, 1)
     if completed_month_count >= 12:
@@ -125,8 +132,12 @@ def load_from_csv(path: str) -> List[Dict[str, str]]:
     return rows
 
 
-def aggregate_s1_f1_monthly(raw_rows: List[Dict[str, str]], report_year: int = 2026) -> Tuple[List[str], List[List[str]]]:
-    cutoff = _resolve_report_cutoff(raw_rows, report_year)
+def aggregate_s1_f1_monthly(
+    raw_rows: List[Dict[str, str]],
+    report_year: int = 2026,
+    force_full_year: bool = False,
+) -> Tuple[List[str], List[List[str]]]:
+    cutoff = _resolve_report_cutoff(raw_rows, report_year, force_full_year=force_full_year)
     month_agent_accessions: Dict[Tuple[str, int], set] = defaultdict(set)
 
     for row in raw_rows:
