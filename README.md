@@ -1,12 +1,16 @@
 # automated_reports
 
-Automates a monthly EDGAR report for **S-1/F-1 combined filings** by filing agent, including:
+Automates monthly EDGAR reports by filing agent for two buckets:
 
-- 2026 completed months only
-- 12-month landscape table for the report year (Jan-Dec shown even when empty)
+- **S-1/F-1** (exact forms only)
+- **10-K/10-Q** (exact forms only)
+
+Each run produces two PDF outputs (one per bucket) with:
+
+- completed months only for the report year
+- 12-month landscape table (Jan-Dec shown even when empty)
 - row and column totals
-- executive analysis section (2026 completed months only)
-- single stylized PDF output
+- executive analysis section
 
 ## Data source
 
@@ -17,7 +21,7 @@ Fields used for this POC:
 
 - `standardized_name` (primary filing agent)
 - `filingDate` (month)
-- `formType` (strictly `S-1` and `F-1` only; no amended variants)
+- `formType` (strictly `S-1`, `F-1`, `10-K`, and `10-Q`; no amended variants)
 - `accessionNumber` (distinct filing count)
 
 ## Run location (important)
@@ -67,13 +71,13 @@ PYTHONPATH=src python -m edgar_report.main \
   --table fact_filing_enriched \
   --location US \
   --year 2026 \
-  --output output/edgar_s1_f1_report_2026.pdf
+  --output output
 ```
 
 ## Run with CSV (local proof-of-concept)
 
 ```bash
-PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
+PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output --year 2026
 ```
 
 
@@ -91,7 +95,7 @@ Example:
 PYTHONPATH=src python -m edgar_report.main \
   --from-csv sample/sample_filings.csv \
   --pdf-engine auto \
-  --output output/edgar_s1_f1_report_2026.pdf \
+  --output output \
   --year 2026
 ```
 
@@ -147,5 +151,11 @@ python -m compileall src
 4. Run the report again:
 
 ```bash
-PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
+PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output --year 2026
 ```
+
+
+Generated files (default):
+
+- `output/edgar_s1_f1_report_<year>.pdf`
+- `output/edgar_10k_10q_report_<year>.pdf`

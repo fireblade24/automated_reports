@@ -26,14 +26,15 @@ def _fallback_analysis(
     headers: list[str],
     report_year: int,
     completed_month_count: int,
+    bucket_label: str,
 ) -> str:
     if len(rows) <= 1:
-        return f"No completed-month S-1/F-1 filings were found for {report_year} in the provided dataset."
+        return f"No completed-month {bucket_label} filings were found for {report_year} in the provided dataset."
     agent_rows = [r for r in rows if r[0] != "Total"]
     total_row = next((r for r in rows if r[0] == "Total"), None)
     top = max(agent_rows, key=lambda r: int(r[-1])) if agent_rows else None
     if not top or not total_row:
-        return f"No completed-month S-1/F-1 filings were found for {report_year} in the provided dataset."
+        return f"No completed-month {bucket_label} filings were found for {report_year} in the provided dataset."
     monthly_values = [int(x) for x in total_row[1:-1]]
     observed_values = monthly_values[: max(completed_month_count, 0)]
     if observed_values:
@@ -48,13 +49,13 @@ def _fallback_analysis(
         f"""
         ## Executive Snapshot
         - Scope control: analysis is limited to completed months in {report_year}; months later in the year are displayed for layout only.
-        - Top filing agent (S-1/F-1): {top[0]} with {top[-1]} filings YTD.
+        - Top filing agent ({bucket_label}): {top[0]} with {top[-1]} filings YTD.
         - Peak completed month so far: {best_month} with {best_month_value} total filings.
 
         ## Opportunity Map
         - Prioritize conversions in accounts currently served by top-volume competitors.
         - Build campaign timing around historically active months for registration filings.
-        - Package premium S-1/F-1 support to improve win rates for high-value issuer mandates.
+        - Package premium {bucket_label} support to improve win rates for high-value issuer mandates.
 
         ## Recommended Action Plan
         - Next 30 days: segment target accounts by agent share and recent activity.
@@ -69,12 +70,13 @@ def generate_executive_analysis(
     rows: list[list[str]],
     raw_rows: list[dict[str, str]],
     report_year: int,
+    bucket_label: str,
 ) -> str:
     completed_month_count = get_completed_month_count(raw_rows, report_year)
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        return _fallback_analysis(rows, headers, report_year, completed_month_count)
+        return _fallback_analysis(rows, headers, report_year, completed_month_count, bucket_label)
 
     payload = {
         "model": os.getenv("OPENAI_MODEL", "gpt-4.1"),
@@ -83,9 +85,9 @@ def generate_executive_analysis(
             {
                 "role": "user",
                 "content": (
-                    f"Analyze this S-1/F-1 filing table for {report_year}. "
-                    f"The table displays all 12 months, but you must only analyze completed months through the current month cutoff. "
-                    f"Do not comment on future months that have not happened yet. "
+                    f"Analyze this {bucket_label} filing table for {report_year}. "
+                    "The table displays all 12 months, but you must only analyze completed months through the current month cutoff. "
+                    "Do not comment on future months that have not happened yet. "
                     "Provide Market Insight Summary, Competitor trends, 90-day action plan, and long-term growth blueprint.\n\n"
                     + _rows_to_markdown(headers, rows)
                 ),
@@ -108,4 +110,4 @@ def generate_executive_analysis(
             body = json.loads(resp.read().decode("utf-8"))
         return body["choices"][0]["message"]["content"]
     except Exception:
-        return _fallback_analysis(rows, headers, report_year, completed_month_count)
+        return _fallback_analysis(rows, headers, report_year, completed_month_count, bucket_label)
