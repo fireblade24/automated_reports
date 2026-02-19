@@ -5,7 +5,7 @@ Automates a monthly EDGAR report for **S-1/F-1 combined filings** by filing agen
 - 2026 completed months only
 - 12-month landscape table (Jan-Dec shown even when empty)
 - row and column totals
-- executive analysis section
+- executive analysis section (2026 completed months only, with 2025 continuity context for AI trend analysis)
 - single stylized PDF output
 
 ## Data source
@@ -92,6 +92,8 @@ If your OS requires native libraries for WeasyPrint, install them per the offici
 ## AI analysis
 
 - If `OPENAI_API_KEY` is set, analysis is generated via OpenAI chat completions REST API.
+- The analysis is constrained to completed months in the 2026 report year, even though the table shows all 12 months for layout.
+- Prior-year (2025) S-1/F-1 data is loaded as continuity context so trend commentary does not restart at 2026.
 - Otherwise, a deterministic local fallback analysis is generated.
 
 Optional env var:

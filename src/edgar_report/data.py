@@ -23,27 +23,20 @@ class DataConfig:
 
 def get_bigquery_sql(config: DataConfig) -> str:
     table_ref = f"`{config.project}.{config.dataset}.{config.table}`"
+    prior_year = config.report_year - 1
     return f"""
-WITH base AS (
-  SELECT
-    standardized_name,
-    filingDate,
-    formType,
-    accessionNumber
-  FROM {table_ref}
-  WHERE EXTRACT(YEAR FROM filingDate) = {config.report_year}
-    AND filingDate < DATE_TRUNC(CURRENT_DATE(), MONTH)
-    AND formType IN ('S-1', 'F-1')
-    AND standardized_name IS NOT NULL
-    AND accessionNumber IS NOT NULL
-)
 SELECT
   standardized_name,
-  EXTRACT(MONTH FROM filingDate) AS filing_month,
-  COUNT(DISTINCT accessionNumber) AS filing_count
-FROM base
-GROUP BY 1, 2
-ORDER BY standardized_name, filing_month
+  filingDate,
+  formType,
+  accessionNumber
+FROM {table_ref}
+WHERE EXTRACT(YEAR FROM filingDate) IN ({prior_year}, {config.report_year})
+  AND filingDate < DATE_TRUNC(CURRENT_DATE(), MONTH)
+  AND formType IN ('S-1', 'F-1')
+  AND standardized_name IS NOT NULL
+  AND accessionNumber IS NOT NULL
+ORDER BY filingDate, standardized_name, accessionNumber
 """.strip()
 
 
@@ -99,36 +92,24 @@ def aggregate_s1_f1_monthly(raw_rows: List[Dict[str, str]], report_year: int = 2
     cutoff = date.today().replace(day=1)
     month_agent_accessions: Dict[Tuple[str, int], set] = defaultdict(set)
 
-    pre_aggregated = all(k in raw_rows[0] for k in ["standardized_name", "filing_month", "filing_count"]) if raw_rows else False
+    for row in raw_rows:
+        form_type = (row.get("formType") or "").strip()
+        if form_type not in S1_F1_FORMS:
+            continue
+        agent = (row.get("standardized_name") or "").strip()
+        accession = (row.get("accessionNumber") or "").strip()
+        date_str = (row.get("filingDate") or "").strip()
+        if not agent or not accession or not date_str:
+            continue
+        try:
+            filing_date = datetime.strptime(date_str[:10], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if filing_date.year != report_year or filing_date >= cutoff:
+            continue
+        month_agent_accessions[(agent, filing_date.month)].add(accession)
 
-    if pre_aggregated:
-        month_agent_count: Dict[Tuple[str, int], int] = defaultdict(int)
-        for row in raw_rows:
-            agent = (row.get("standardized_name") or "").strip()
-            if not agent:
-                continue
-            month = int(row.get("filing_month", "0"))
-            count = int(row.get("filing_count", "0"))
-            month_agent_count[(agent, month)] += count
-    else:
-        for row in raw_rows:
-            form_type = (row.get("formType") or "").strip()
-            if form_type not in S1_F1_FORMS:
-                continue
-            agent = (row.get("standardized_name") or "").strip()
-            accession = (row.get("accessionNumber") or "").strip()
-            date_str = (row.get("filingDate") or "").strip()
-            if not agent or not accession or not date_str:
-                continue
-            try:
-                filing_date = datetime.strptime(date_str[:10], "%Y-%m-%d").date()
-            except ValueError:
-                continue
-            if filing_date.year != report_year or filing_date >= cutoff:
-                continue
-            month_agent_accessions[(agent, filing_date.month)].add(accession)
-
-        month_agent_count = {k: len(v) for k, v in month_agent_accessions.items()}
+    month_agent_count = {k: len(v) for k, v in month_agent_accessions.items()}
 
     agents = sorted(
         {agent for agent, _ in month_agent_count.keys()},

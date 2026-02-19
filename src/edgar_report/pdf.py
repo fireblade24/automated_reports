@@ -61,6 +61,39 @@ def _new_page(pages: list[PageCanvas]) -> PageCanvas:
     pages.append(page)
     return page
 
+def _clean_inline_markdown(text: str) -> str:
+    cleaned = text.replace("**", "").replace("__", "").replace("`", "")
+    cleaned = cleaned.replace("***", "")
+    return cleaned.strip()
+
+
+def _parse_analysis_blocks(analysis_text: str) -> list[tuple[str, str]]:
+    blocks: list[tuple[str, str]] = []
+    for raw_line in analysis_text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            blocks.append(("space", ""))
+            continue
+
+        if stripped.startswith("###"):
+            blocks.append(("heading", _clean_inline_markdown(stripped.lstrip("# "))))
+            continue
+        if stripped.startswith("##"):
+            blocks.append(("heading", _clean_inline_markdown(stripped.lstrip("# "))))
+            continue
+        if stripped.startswith("#"):
+            blocks.append(("heading", _clean_inline_markdown(stripped.lstrip("# "))))
+            continue
+
+        if stripped.startswith("- ") or stripped.startswith("* "):
+            blocks.append(("bullet", _clean_inline_markdown(stripped[2:])))
+            continue
+
+        blocks.append(("paragraph", _clean_inline_markdown(stripped)))
+
+    return blocks
+
+
 
 def _build_simple_pdf(output_path: str, headers: list[str], rows: list[list[str]], analysis_text: str) -> None:
     width, height = 792, 612
@@ -94,15 +127,42 @@ def _build_simple_pdf(output_path: str, headers: list[str], rows: list[list[str]
     page = _new_page(pages)
     page.text(30, 580, 14, "Executive Analysis")
     y = 560
-    for para in analysis_text.split("\n"):
-        wrapped_lines = textwrap.wrap(para, width=130) or [""]
-        for wrapped in wrapped_lines:
-            if y < 30:
-                page = _new_page(pages)
-                page.text(30, 580, 14, "Executive Analysis (continued)")
-                y = 560
-            page.text(30, y, 9, wrapped)
-            y -= 11
+    for block_type, content in _parse_analysis_blocks(analysis_text):
+        if block_type == "space":
+            y -= 6
+            continue
+
+        if y < 30:
+            page = _new_page(pages)
+            page.text(30, 580, 14, "Executive Analysis (continued)")
+            y = 560
+
+        if block_type == "heading":
+            for wrapped in textwrap.wrap(content, width=95) or [content]:
+                if y < 30:
+                    page = _new_page(pages)
+                    page.text(30, 580, 14, "Executive Analysis (continued)")
+                    y = 560
+                page.text(30, y, 11, wrapped)
+                y -= 12
+            y -= 2
+        elif block_type == "bullet":
+            for idx_line, wrapped in enumerate(textwrap.wrap(content, width=120) or [content]):
+                if y < 30:
+                    page = _new_page(pages)
+                    page.text(30, 580, 14, "Executive Analysis (continued)")
+                    y = 560
+                prefix = "• " if idx_line == 0 else "  "
+                page.text(30, y, 9, prefix + wrapped)
+                y -= 11
+        else:
+            for wrapped in textwrap.wrap(content, width=125) or [content]:
+                if y < 30:
+                    page = _new_page(pages)
+                    page.text(30, 580, 14, "Executive Analysis (continued)")
+                    y = 560
+                page.text(30, y, 9, wrapped)
+                y -= 11
 
     page_streams = [p.build_stream() for p in pages]
 
@@ -146,10 +206,18 @@ def _build_weasy_html(headers: list[str], rows: list[list[str]], analysis_text: 
             f"<tr class='{css_class}'>" + "".join(f"<td>{html.escape(str(cell))}</td>" for cell in row) + "</tr>"
         )
 
-    analysis_html = "".join(
-        f"<p>{html.escape(line)}</p>" if line.strip() else "<p class='spacer'></p>"
-        for line in analysis_text.splitlines()
-    )
+    analysis_parts: list[str] = []
+    for block_type, content in _parse_analysis_blocks(analysis_text):
+        escaped = html.escape(content)
+        if block_type == "space":
+            analysis_parts.append("<p class='spacer'></p>")
+        elif block_type == "heading":
+            analysis_parts.append(f"<h3>{escaped}</h3>")
+        elif block_type == "bullet":
+            analysis_parts.append(f"<p class='bullet'>• {escaped}</p>")
+        else:
+            analysis_parts.append(f"<p>{escaped}</p>")
+    analysis_html = "".join(analysis_parts)
 
     return f"""
 <!doctype html>
@@ -213,6 +281,12 @@ def _build_weasy_html(headers: list[str], rows: list[list[str]], analysis_text: 
       margin: 12px 0 6px 0;
       page-break-after: avoid;
     }}
+    h3 {{
+      font-size: 12px;
+      color: #1e3a5f;
+      margin: 10px 0 4px 0;
+      page-break-after: avoid;
+    }}
     p {{
       margin: 0 0 6px 0;
       line-height: 1.35;
@@ -220,6 +294,10 @@ def _build_weasy_html(headers: list[str], rows: list[list[str]], analysis_text: 
     }}
     .spacer {{
       margin: 0 0 8px 0;
+    }}
+    .bullet {{
+      padding-left: 10px;
+      text-indent: -10px;
     }}
   </style>
 </head>

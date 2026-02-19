@@ -42,7 +42,7 @@ def main() -> None:
         raw = load_from_bigquery(config)
 
     headers, rows = aggregate_s1_f1_monthly(raw, report_year=args.year)
-    analysis = generate_executive_analysis(headers, rows)
+    analysis = generate_executive_analysis(headers, rows, raw_rows=raw, report_year=args.year)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
