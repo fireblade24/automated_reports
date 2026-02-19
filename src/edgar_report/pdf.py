@@ -95,12 +95,19 @@ def _parse_analysis_blocks(analysis_text: str) -> list[tuple[str, str]]:
 
 
 
-def _build_simple_pdf(output_path: str, headers: list[str], rows: list[list[str]], analysis_text: str) -> None:
+def _build_simple_pdf(
+    output_path: str,
+    headers: list[str],
+    rows: list[list[str]],
+    analysis_text: str,
+    report_year: int,
+    comparison_tables: list[tuple[int, list[str], list[list[str]]]] | None = None,
+) -> None:
     width, height = 792, 612
     pages: list[PageCanvas] = []
 
     page = _new_page(pages)
-    page.text(30, 580, 18, "EDGAR Agents S-1/F-1 Monthly Filing Report (2026)")
+    page.text(30, 580, 18, f"EDGAR Agents S-1/F-1 Monthly Filing Report ({report_year})")
     page.text(30, 560, 11, "12-month landscape table includes Jan-Dec, with row and column totals.")
 
     col_widths = [150] + [42] * 12 + [50]
@@ -113,16 +120,31 @@ def _build_simple_pdf(output_path: str, headers: list[str], rows: list[list[str]
             canvas.text(x_positions[i] + 2, y_val, 8, cell)
         return y_val - 14
 
-    y = draw_table_header(page, 535)
-    table_bottom_limit = 40
-    for row in rows:
-        if y < table_bottom_limit:
-            page = _new_page(pages)
-            page.text(30, 580, 13, "S-1/F-1 Filing Volume by Agent")
-            y = draw_table_header(page, 560)
-        for i, cell in enumerate(row):
-            page.text(x_positions[i] + 2, y, 7, str(cell))
-        y -= 12
+    def render_table(table_title: str, table_headers: list[str], table_rows: list[list[str]]) -> None:
+        nonlocal page
+
+        def draw_dynamic_header(canvas: PageCanvas, y_val: int) -> int:
+            for i, cell in enumerate(table_headers):
+                canvas.text(x_positions[i] + 2, y_val, 8, cell)
+            return y_val - 14
+
+        page.text(30, 540, 13, table_title)
+        y_local = draw_dynamic_header(page, 525)
+        table_bottom_limit = 40
+        for row in table_rows:
+            if y_local < table_bottom_limit:
+                page = _new_page(pages)
+                page.text(30, 580, 13, table_title + " (continued)")
+                y_local = draw_dynamic_header(page, 560)
+            for i, cell in enumerate(row):
+                page.text(x_positions[i] + 2, y_local, 7, str(cell))
+            y_local -= 12
+
+    render_table(f"{report_year} S-1/F-1 Filing Volume by Agent", headers, rows)
+
+    for comp_year, comp_headers, comp_rows in comparison_tables or []:
+        page = _new_page(pages)
+        render_table(f"{comp_year} S-1/F-1 Filing Volume by Agent", comp_headers, comp_rows)
 
     page = _new_page(pages)
     page.text(30, 580, 14, "Executive Analysis")
@@ -197,14 +219,29 @@ def _build_simple_pdf(output_path: str, headers: list[str], rows: list[list[str]
         file_obj.write(pdf.build(catalog_obj))
 
 
-def _build_weasy_html(headers: list[str], rows: list[list[str]], analysis_text: str) -> str:
-    head_cells = "".join(f"<th>{html.escape(cell)}</th>" for cell in headers)
-    body_rows: list[str] = []
-    for row in rows:
-        css_class = "total-row" if row and row[0] == "Total" else ""
-        body_rows.append(
-            f"<tr class='{css_class}'>" + "".join(f"<td>{html.escape(str(cell))}</td>" for cell in row) + "</tr>"
+def _build_weasy_html(
+    headers: list[str],
+    rows: list[list[str]],
+    analysis_text: str,
+    report_year: int,
+    comparison_tables: list[tuple[int, list[str], list[list[str]]]] | None = None,
+) -> str:
+    def table_html(table_headers: list[str], table_rows: list[list[str]], year_label: int) -> str:
+        head_cells = "".join(f"<th>{html.escape(cell)}</th>" for cell in table_headers)
+        body_rows: list[str] = []
+        for row in table_rows:
+            css_class = "total-row" if row and row[0] == "Total" else ""
+            body_rows.append(
+                f"<tr class='{css_class}'>" + "".join(f"<td>{html.escape(str(cell))}</td>" for cell in row) + "</tr>"
+            )
+        return (
+            f"<h2>{year_label} S-1/F-1 Filing Volume by Agent</h2>"
+            f"<table><thead><tr>{head_cells}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
         )
+
+    table_sections = [table_html(headers, rows, report_year)]
+    for comp_year, comp_headers, comp_rows in comparison_tables or []:
+        table_sections.append(table_html(comp_headers, comp_rows, comp_year))
 
     analysis_parts: list[str] = []
     for block_type, content in _parse_analysis_blocks(analysis_text):
@@ -302,15 +339,10 @@ def _build_weasy_html(headers: list[str], rows: list[list[str]], analysis_text: 
   </style>
 </head>
 <body>
-  <h1>EDGAR Agents S-1/F-1 Monthly Filing Report (2026)</h1>
+  <h1>EDGAR Agents S-1/F-1 Monthly Filing Report ({report_year})</h1>
   <p class='subtitle'>12-month landscape table includes Jan-Dec, with row and column totals.</p>
 
-  <table>
-    <thead><tr>{head_cells}</tr></thead>
-    <tbody>
-      {''.join(body_rows)}
-    </tbody>
-  </table>
+  {''.join(table_sections)}
 
   <h2>Executive Analysis</h2>
   {analysis_html}
@@ -319,10 +351,17 @@ def _build_weasy_html(headers: list[str], rows: list[list[str]], analysis_text: 
 """.strip()
 
 
-def _build_weasy_pdf(output_path: str, headers: list[str], rows: list[list[str]], analysis_text: str) -> None:
+def _build_weasy_pdf(
+    output_path: str,
+    headers: list[str],
+    rows: list[list[str]],
+    analysis_text: str,
+    report_year: int,
+    comparison_tables: list[tuple[int, list[str], list[list[str]]]] | None = None,
+) -> None:
     from weasyprint import HTML
 
-    html_doc = _build_weasy_html(headers, rows, analysis_text)
+    html_doc = _build_weasy_html(headers, rows, analysis_text, report_year, comparison_tables)
     HTML(string=html_doc).write_pdf(output_path)
 
 
@@ -331,6 +370,8 @@ def build_pdf(
     headers: list[str],
     rows: list[list[str]],
     analysis_text: str,
+    report_year: int,
+    comparison_tables: list[tuple[int, list[str], list[list[str]]]] | None = None,
     engine: str = "auto",
 ) -> str:
     if engine not in {"auto", "simple", "weasyprint"}:
@@ -338,11 +379,11 @@ def build_pdf(
 
     if engine in {"auto", "weasyprint"}:
         try:
-            _build_weasy_pdf(output_path, headers, rows, analysis_text)
+            _build_weasy_pdf(output_path, headers, rows, analysis_text, report_year, comparison_tables)
             return "weasyprint"
         except Exception:
             if engine == "weasyprint":
                 raise
 
-    _build_simple_pdf(output_path, headers, rows, analysis_text)
+    _build_simple_pdf(output_path, headers, rows, analysis_text, report_year, comparison_tables)
     return "simple"

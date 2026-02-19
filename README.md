@@ -3,7 +3,7 @@
 Automates a monthly EDGAR report for **S-1/F-1 combined filings** by filing agent, including:
 
 - 2026 completed months only
-- 12-month landscape table (Jan-Dec shown even when empty)
+- dual 12-month landscape tables (prior year and report year; Jan-Dec shown even when empty)
 - row and column totals
 - executive analysis section (2026 completed months only, with 2025 continuity context for AI trend analysis)
 - single stylized PDF output
@@ -71,6 +71,8 @@ PYTHONPATH=src python -m edgar_report.main \
 ```
 
 ## Run with CSV (local proof-of-concept)
+
+The generated PDF now includes two table sections: one for the report year and one for the prior year, to help verify data continuity.
 
 ```bash
 PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
