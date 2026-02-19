@@ -130,7 +130,10 @@ def aggregate_s1_f1_monthly(raw_rows: List[Dict[str, str]], report_year: int = 2
 
         month_agent_count = {k: len(v) for k, v in month_agent_accessions.items()}
 
-    agents = sorted({agent for agent, _ in month_agent_count.keys()})
+    agents = sorted(
+        {agent for agent, _ in month_agent_count.keys()},
+        key=lambda agent: (-sum(month_agent_count.get((agent, m), 0) for m in range(1, 13)), agent),
+    )
     headers = ["Filing Agent", *MONTH_LABELS, "Total"]
     rows: List[List[str]] = []
 
