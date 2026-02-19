@@ -17,6 +17,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--table", default="fact_filing_enriched")
     parser.add_argument("--location", default="US")
     parser.add_argument("--from-csv", help="Optional local CSV input for offline proof-of-concept")
+    parser.add_argument(
+        "--pdf-engine",
+        choices=["auto", "simple", "weasyprint"],
+        default="auto",
+        help="PDF renderer to use: auto (prefer WeasyPrint), simple (built-in fallback), or weasyprint only",
+    )
     return parser.parse_args()
 
 
@@ -40,9 +46,9 @@ def main() -> None:
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    build_pdf(str(output_path), headers, rows, analysis)
+    selected_engine = build_pdf(str(output_path), headers, rows, analysis, engine=args.pdf_engine)
 
-    print(f"Report created: {output_path}")
+    print(f"Report created: {output_path} (engine: {selected_engine})")
 
 
 if __name__ == "__main__":

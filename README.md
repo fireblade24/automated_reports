@@ -66,6 +66,29 @@ PYTHONPATH=src python -m edgar_report.main \
 PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
 ```
 
+
+## PDF rendering engines
+
+The CLI now supports multiple PDF engines:
+
+- `--pdf-engine auto` (default): tries WeasyPrint first, then falls back to built-in renderer.
+- `--pdf-engine simple`: always use built-in no-dependency renderer.
+- `--pdf-engine weasyprint`: require WeasyPrint (fails fast if unavailable).
+
+Example:
+
+```bash
+PYTHONPATH=src python -m edgar_report.main   --from-csv sample/sample_filings.csv   --pdf-engine auto   --output output/edgar_s1_f1_report_2026.pdf   --year 2026
+```
+
+### WeasyPrint setup (optional)
+
+```bash
+python -m pip install weasyprint
+```
+
+If your OS requires native libraries for WeasyPrint, install them per the official WeasyPrint docs.
+
 ## AI analysis
 
 - If `OPENAI_API_KEY` is set, analysis is generated via OpenAI chat completions REST API.

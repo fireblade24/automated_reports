@@ -2,3 +2,4 @@
 # Optional integrations:
 # - OpenAI API via HTTPS (no SDK required)
 # - BigQuery via `bq` CLI
+# - WeasyPrint for enhanced PDF rendering (`pip install weasyprint`)

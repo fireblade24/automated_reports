@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import textwrap
 
 
@@ -20,14 +21,14 @@ class SimplePdf:
             out.extend(obj)
             out.extend(b"\nendobj\n")
         xref_pos = len(out)
-        out.extend(f"xref\n0 {len(self.objects)+1}\n".encode())
+        out.extend(f"xref\n0 {len(self.objects) + 1}\n".encode())
         out.extend(b"0000000000 65535 f \n")
         for pos in xref[1:]:
             out.extend(f"{pos:010d} 00000 n \n".encode())
         out.extend(
             (
                 "trailer\n"
-                f"<< /Size {len(self.objects)+1} /Root {root_obj} 0 R >>\n"
+                f"<< /Size {len(self.objects) + 1} /Root {root_obj} 0 R >>\n"
                 "startxref\n"
                 f"{xref_pos}\n"
                 "%%EOF\n"
@@ -61,7 +62,7 @@ def _new_page(pages: list[PageCanvas]) -> PageCanvas:
     return page
 
 
-def build_pdf(output_path: str, headers: list[str], rows: list[list[str]], analysis_text: str) -> None:
+def _build_simple_pdf(output_path: str, headers: list[str], rows: list[list[str]], analysis_text: str) -> None:
     width, height = 792, 612
     pages: list[PageCanvas] = []
 
@@ -75,8 +76,8 @@ def build_pdf(output_path: str, headers: list[str], rows: list[list[str]], analy
         x_positions.append(x_positions[-1] + w)
 
     def draw_table_header(canvas: PageCanvas, y_val: int) -> int:
-        for i, h in enumerate(headers):
-            canvas.text(x_positions[i] + 2, y_val, 8, h)
+        for i, cell in enumerate(headers):
+            canvas.text(x_positions[i] + 2, y_val, 8, cell)
         return y_val - 14
 
     y = draw_table_header(page, 535)
@@ -114,7 +115,6 @@ def build_pdf(output_path: str, headers: list[str], rows: list[list[str]], analy
             pdf.add_object(f"<< /Length {len(stream)} >>\nstream\n".encode() + stream + b"\nendstream")
         )
 
-    # Page objects will be added next, followed by the shared Pages object and Catalog.
     page_obj_start = len(pdf.objects) + 1
     pages_obj_id = page_obj_start + len(page_streams)
 
@@ -129,9 +129,142 @@ def build_pdf(output_path: str, headers: list[str], rows: list[list[str]], analy
             )
         )
 
-    kids = " ".join(f"{pid} 0 R" for pid in page_obj_ids)
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_obj_ids)
     pages_obj = pdf.add_object(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_obj_ids)} >>".encode())
     catalog_obj = pdf.add_object(f"<< /Type /Catalog /Pages {pages_obj} 0 R >>".encode())
 
-    with open(output_path, "wb") as f:
-        f.write(pdf.build(catalog_obj))
+    with open(output_path, "wb") as file_obj:
+        file_obj.write(pdf.build(catalog_obj))
+
+
+def _build_weasy_html(headers: list[str], rows: list[list[str]], analysis_text: str) -> str:
+    head_cells = "".join(f"<th>{html.escape(cell)}</th>" for cell in headers)
+    body_rows: list[str] = []
+    for row in rows:
+        css_class = "total-row" if row and row[0] == "Total" else ""
+        body_rows.append(
+            f"<tr class='{css_class}'>" + "".join(f"<td>{html.escape(str(cell))}</td>" for cell in row) + "</tr>"
+        )
+
+    analysis_html = "".join(
+        f"<p>{html.escape(line)}</p>" if line.strip() else "<p class='spacer'></p>"
+        for line in analysis_text.splitlines()
+    )
+
+    return f"""
+<!doctype html>
+<html>
+<head>
+  <meta charset='utf-8'>
+  <style>
+    @page {{
+      size: Letter landscape;
+      margin: 0.4in;
+    }}
+    body {{
+      font-family: Arial, Helvetica, sans-serif;
+      color: #1f2937;
+      font-size: 10px;
+    }}
+    h1 {{
+      margin: 0 0 2px 0;
+      font-size: 20px;
+      color: #0f3d69;
+    }}
+    .subtitle {{
+      margin: 0 0 12px 0;
+      color: #4b5563;
+      font-size: 11px;
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin-bottom: 14px;
+      font-size: 9px;
+    }}
+    th, td {{
+      border: 1px solid #cbd5e1;
+      padding: 4px;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    th:first-child, td:first-child {{
+      text-align: left;
+      width: 160px;
+    }}
+    th {{
+      background: #e2e8f0;
+      color: #0f172a;
+      font-weight: 700;
+    }}
+    tr:nth-child(even) td {{
+      background: #f8fafc;
+    }}
+    tr.total-row td {{
+      font-weight: 700;
+      background: #e5f0ff !important;
+    }}
+    h2 {{
+      font-size: 14px;
+      color: #0f3d69;
+      margin: 12px 0 6px 0;
+      page-break-after: avoid;
+    }}
+    p {{
+      margin: 0 0 6px 0;
+      line-height: 1.35;
+      white-space: pre-wrap;
+    }}
+    .spacer {{
+      margin: 0 0 8px 0;
+    }}
+  </style>
+</head>
+<body>
+  <h1>EDGAR Agents S-1/F-1 Monthly Filing Report (2026)</h1>
+  <p class='subtitle'>12-month landscape table includes Jan-Dec, with row and column totals.</p>
+
+  <table>
+    <thead><tr>{head_cells}</tr></thead>
+    <tbody>
+      {''.join(body_rows)}
+    </tbody>
+  </table>
+
+  <h2>Executive Analysis</h2>
+  {analysis_html}
+</body>
+</html>
+""".strip()
+
+
+def _build_weasy_pdf(output_path: str, headers: list[str], rows: list[list[str]], analysis_text: str) -> None:
+    from weasyprint import HTML
+
+    html_doc = _build_weasy_html(headers, rows, analysis_text)
+    HTML(string=html_doc).write_pdf(output_path)
+
+
+def build_pdf(
+    output_path: str,
+    headers: list[str],
+    rows: list[list[str]],
+    analysis_text: str,
+    engine: str = "auto",
+) -> str:
+    if engine not in {"auto", "simple", "weasyprint"}:
+        raise ValueError("engine must be one of: auto, simple, weasyprint")
+
+    if engine in {"auto", "weasyprint"}:
+        try:
+            _build_weasy_pdf(output_path, headers, rows, analysis_text)
+            return "weasyprint"
+        except Exception:
+            if engine == "weasyprint":
+                raise
+
+    _build_simple_pdf(output_path, headers, rows, analysis_text)
+    return "simple"
