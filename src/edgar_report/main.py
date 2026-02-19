@@ -42,7 +42,6 @@ def main() -> None:
         raw = load_from_bigquery(config)
 
     headers, rows = aggregate_s1_f1_monthly(raw, report_year=args.year)
-    prior_headers, prior_rows = aggregate_s1_f1_monthly(raw, report_year=args.year - 1, force_full_year=True)
     analysis = generate_executive_analysis(headers, rows, raw_rows=raw, report_year=args.year)
 
     output_path = Path(args.output)
@@ -53,7 +52,6 @@ def main() -> None:
         rows,
         analysis,
         report_year=args.year,
-        comparison_tables=[(args.year - 1, prior_headers, prior_rows)],
         engine=args.pdf_engine,
     )
 
