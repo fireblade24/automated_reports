@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import shutil
 import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ class DataConfig:
     dataset: str = "edgar"
     table: str = "fact_filing_enriched"
     report_year: int = 2026
+    location: str = "US"
 
 
 def get_bigquery_sql(config: DataConfig) -> str:
@@ -45,6 +47,17 @@ ORDER BY standardized_name, filing_month
 """.strip()
 
 
+def _ensure_bq_cli() -> None:
+    if shutil.which("bq") is None:
+        raise RuntimeError(
+            "BigQuery mode requires the `bq` CLI, but it was not found in PATH. "
+            "Install Google Cloud SDK and run `gcloud auth application-default login` and "
+            "`gcloud auth login`, then retry."
+        )
+
+
+def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
+    _ensure_bq_cli()
 def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
     sql = get_bigquery_sql(config)
     cmd = [
@@ -52,6 +65,19 @@ def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
         "query",
         "--use_legacy_sql=false",
         "--format=csv",
+        f"--location={config.location}",
+        f"--project_id={config.project}",
+        sql,
+    ]
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip() if exc.stderr else ""
+        raise RuntimeError(
+            "BigQuery query failed. Ensure your account can access the table and billing is enabled for the project. "
+            f"Command: {' '.join(cmd[:-1])} <SQL>. Error: {stderr}"
+        ) from exc
+
         sql,
     ]
     result = subprocess.run(cmd, check=True, capture_output=True, text=True)

@@ -12,12 +12,23 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate EDGAR S-1/F-1 monthly report PDF")
     parser.add_argument("--output", default="output/edgar_s1_f1_report_2026.pdf")
     parser.add_argument("--year", type=int, default=2026)
+    parser.add_argument("--project", default="sec-edgar-ralph")
+    parser.add_argument("--dataset", default="edgar")
+    parser.add_argument("--table", default="fact_filing_enriched")
+    parser.add_argument("--location", default="US")
     parser.add_argument("--from-csv", help="Optional local CSV input for offline proof-of-concept")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    config = DataConfig(
+        project=args.project,
+        dataset=args.dataset,
+        table=args.table,
+        report_year=args.year,
+        location=args.location,
+    )
     config = DataConfig(report_year=args.year)
 
     if args.from_csv:
