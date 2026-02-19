@@ -72,7 +72,6 @@ def _resolve_report_cutoff(
 
 def get_bigquery_sql(config: DataConfig) -> str:
     table_ref = f"`{config.project}.{config.dataset}.{config.table}`"
-    prior_year = config.report_year - 1
     return f"""
 SELECT
   standardized_name,
@@ -81,9 +80,9 @@ SELECT
   formType,
   accessionNumber
 FROM {table_ref}
-WHERE EXTRACT(YEAR FROM filingDate) IN ({prior_year}, {config.report_year})
+WHERE EXTRACT(YEAR FROM filingDate) = {config.report_year}
   AND (STARTS_WITH(UPPER(formType), 'S-1') OR STARTS_WITH(UPPER(formType), 'F-1'))
-  AND standardized_name IS NOT NULL
+  AND (standardized_name IS NOT NULL OR filingAgentLabel IS NOT NULL)
   AND accessionNumber IS NOT NULL
 ORDER BY filingDate, standardized_name, accessionNumber
 """.strip()
