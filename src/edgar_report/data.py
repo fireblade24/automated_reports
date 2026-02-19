@@ -82,7 +82,7 @@ SELECT
 FROM {table_ref}
 WHERE EXTRACT(YEAR FROM filingDate) = {config.report_year}
   AND (STARTS_WITH(UPPER(formType), 'S-1') OR STARTS_WITH(UPPER(formType), 'F-1'))
-  AND standardized_name IS NOT NULL
+  AND (standardized_name IS NOT NULL OR filingAgentLabel IS NOT NULL)
   AND accessionNumber IS NOT NULL
 ORDER BY filingDate, standardized_name, accessionNumber
 """.strip()
