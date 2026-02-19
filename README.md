@@ -64,6 +64,20 @@ PYTHONPATH=src python -m edgar_report.main \
 
 ```bash
 PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
+## Run
+
+### CSV mode (recommended for local proof-of-concept)
+
+```bash
+PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
+```
+
+### BigQuery mode
+
+Requires `bq` CLI auth/config to be available in the environment.
+
+```bash
+PYTHONPATH=src python -m edgar_report.main --output output/edgar_s1_f1_report_2026.pdf --year 2026
 ```
 
 ## AI analysis
