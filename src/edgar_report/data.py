@@ -58,7 +58,6 @@ def _ensure_bq_cli() -> None:
 
 def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
     _ensure_bq_cli()
-def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
     sql = get_bigquery_sql(config)
     cmd = [
         "bq",
@@ -78,9 +77,6 @@ def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
             f"Command: {' '.join(cmd[:-1])} <SQL>. Error: {stderr}"
         ) from exc
 
-        sql,
-    ]
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
     rows: List[Dict[str, str]] = []
     reader = csv.DictReader(result.stdout.splitlines())
     for row in reader:

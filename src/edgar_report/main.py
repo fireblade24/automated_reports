@@ -29,7 +29,6 @@ def main() -> None:
         report_year=args.year,
         location=args.location,
     )
-    config = DataConfig(report_year=args.year)
 
     if args.from_csv:
         raw = load_from_csv(args.from_csv)

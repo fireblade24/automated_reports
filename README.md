@@ -64,20 +64,6 @@ PYTHONPATH=src python -m edgar_report.main \
 
 ```bash
 PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
-## Run
-
-### CSV mode (recommended for local proof-of-concept)
-
-```bash
-PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
-```
-
-### BigQuery mode
-
-Requires `bq` CLI auth/config to be available in the environment.
-
-```bash
-PYTHONPATH=src python -m edgar_report.main --output output/edgar_s1_f1_report_2026.pdf --year 2026
 ```
 
 ## AI analysis
@@ -89,4 +75,38 @@ Optional env var:
 
 ```bash
 export OPENAI_MODEL=gpt-4.1
+```
+
+## Troubleshooting merge-conflict syntax errors
+
+If you resolved conflicts in GitHub and then see a Python parse error such as:
+
+```text
+SyntaxError: unmatched ']'
+```
+
+you likely have a malformed merge result in one of the source files.
+
+1. Confirm there are no conflict markers left in the repo:
+
+```bash
+rg "^(<<<<<<<|=======|>>>>>>>)" src README.md scripts sample
+```
+
+2. Restore the known-good files from the latest commit if needed:
+
+```bash
+git checkout -- src/edgar_report/data.py src/edgar_report/main.py
+```
+
+3. Re-run a syntax check:
+
+```bash
+python -m compileall src
+```
+
+4. Run the report again:
+
+```bash
+PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv --output output/edgar_s1_f1_report_2026.pdf --year 2026
 ```
