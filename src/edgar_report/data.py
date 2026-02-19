@@ -21,6 +21,39 @@ class DataConfig:
     location: str = "US"
 
 
+def _parse_date(raw_date: str) -> date | None:
+    try:
+        return datetime.strptime(raw_date[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def get_completed_month_count(raw_rows: List[Dict[str, str]], report_year: int) -> int:
+    today = date.today()
+    if report_year < today.year:
+        return 12
+    if report_year == today.year:
+        return max(today.month - 1, 0)
+
+    months_with_data = set()
+    for row in raw_rows:
+        filing_date = _parse_date((row.get("filingDate") or "").strip())
+        if not filing_date or filing_date.year != report_year:
+            continue
+        months_with_data.add(filing_date.month)
+
+    return max(months_with_data) if months_with_data else 0
+
+
+def _resolve_report_cutoff(raw_rows: List[Dict[str, str]], report_year: int) -> date:
+    completed_month_count = get_completed_month_count(raw_rows, report_year)
+    if completed_month_count <= 0:
+        return date(report_year, 1, 1)
+    if completed_month_count >= 12:
+        return date(report_year + 1, 1, 1)
+    return date(report_year, completed_month_count + 1, 1)
+
+
 def get_bigquery_sql(config: DataConfig) -> str:
     table_ref = f"`{config.project}.{config.dataset}.{config.table}`"
     prior_year = config.report_year - 1
@@ -32,7 +65,6 @@ SELECT
   accessionNumber
 FROM {table_ref}
 WHERE EXTRACT(YEAR FROM filingDate) IN ({prior_year}, {config.report_year})
-  AND filingDate < DATE_TRUNC(CURRENT_DATE(), MONTH)
   AND formType IN ('S-1', 'F-1')
   AND standardized_name IS NOT NULL
   AND accessionNumber IS NOT NULL
@@ -89,7 +121,7 @@ def load_from_csv(path: str) -> List[Dict[str, str]]:
 
 
 def aggregate_s1_f1_monthly(raw_rows: List[Dict[str, str]], report_year: int = 2026) -> Tuple[List[str], List[List[str]]]:
-    cutoff = date.today().replace(day=1)
+    cutoff = _resolve_report_cutoff(raw_rows, report_year)
     month_agent_accessions: Dict[Tuple[str, int], set] = defaultdict(set)
 
     for row in raw_rows:
@@ -98,12 +130,8 @@ def aggregate_s1_f1_monthly(raw_rows: List[Dict[str, str]], report_year: int = 2
             continue
         agent = (row.get("standardized_name") or "").strip()
         accession = (row.get("accessionNumber") or "").strip()
-        date_str = (row.get("filingDate") or "").strip()
-        if not agent or not accession or not date_str:
-            continue
-        try:
-            filing_date = datetime.strptime(date_str[:10], "%Y-%m-%d").date()
-        except ValueError:
+        filing_date = _parse_date((row.get("filingDate") or "").strip())
+        if not agent or not accession or not filing_date:
             continue
         if filing_date.year != report_year or filing_date >= cutoff:
             continue

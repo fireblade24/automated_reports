@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import os
 from collections import defaultdict
-from datetime import date, datetime
 from textwrap import dedent
 from urllib import request
+
+from edgar_report.data import S1_F1_FORMS, _parse_date, get_completed_month_count
 
 SYSTEM_PROMPT = (
     "You are the Chief Strategy Officer at EDGAR Agents. Provide executive-level strategic "
@@ -23,28 +24,22 @@ def _rows_to_markdown(headers: list[str], rows: list[list[str]]) -> str:
 
 def _build_prior_year_context(raw_rows: list[dict[str, str]], report_year: int) -> str:
     prior_year = report_year - 1
-    cutoff = date.today().replace(day=1)
-    cutoff_month = cutoff.month
+    comparable_month_limit = get_completed_month_count(raw_rows, report_year)
 
     counts_by_month: dict[int, set[str]] = defaultdict(set)
     for row in raw_rows:
-        if (row.get("formType") or "").strip() not in {"S-1", "F-1"}:
+        if (row.get("formType") or "").strip() not in S1_F1_FORMS:
             continue
 
         accession = (row.get("accessionNumber") or "").strip()
-        filing_date_str = (row.get("filingDate") or "").strip()
-        if not accession or not filing_date_str:
-            continue
-
-        try:
-            filing_date = datetime.strptime(filing_date_str[:10], "%Y-%m-%d").date()
-        except ValueError:
+        filing_date = _parse_date((row.get("filingDate") or "").strip())
+        if not accession or not filing_date:
             continue
 
         if filing_date.year != prior_year:
             continue
 
-        if cutoff_month > 1 and filing_date.month > cutoff_month - 1:
+        if comparable_month_limit and filing_date.month > comparable_month_limit:
             continue
 
         counts_by_month[filing_date.month].add(accession)
@@ -54,11 +49,17 @@ def _build_prior_year_context(raw_rows: list[dict[str, str]], report_year: int) 
 
     return (
         f"Prior-year trend context for {prior_year} (S-1/F-1, comparable months only through "
-        f"month {max(cutoff_month - 1, 0)}): total={comparable_total}; monthly={', '.join(month_pairs)}"
+        f"month {comparable_month_limit}): total={comparable_total}; monthly={', '.join(month_pairs)}"
     )
 
 
-def _fallback_analysis(rows: list[list[str]], headers: list[str], trend_context: str, report_year: int) -> str:
+def _fallback_analysis(
+    rows: list[list[str]],
+    headers: list[str],
+    trend_context: str,
+    report_year: int,
+    completed_month_count: int,
+) -> str:
     if len(rows) <= 1:
         return f"No completed-month S-1/F-1 filings were found for {report_year} in the provided dataset."
     agent_rows = [r for r in rows if r[0] != "Total"]
@@ -67,7 +68,6 @@ def _fallback_analysis(rows: list[list[str]], headers: list[str], trend_context:
     if not top or not total_row:
         return f"No completed-month S-1/F-1 filings were found for {report_year} in the provided dataset."
     monthly_values = [int(x) for x in total_row[1:-1]]
-    completed_month_count = date.today().month - 1
     observed_values = monthly_values[: max(completed_month_count, 0)]
     if observed_values:
         best_idx = observed_values.index(max(observed_values))
@@ -107,10 +107,11 @@ def generate_executive_analysis(
     report_year: int,
 ) -> str:
     trend_context = _build_prior_year_context(raw_rows, report_year)
+    completed_month_count = get_completed_month_count(raw_rows, report_year)
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        return _fallback_analysis(rows, headers, trend_context, report_year)
+        return _fallback_analysis(rows, headers, trend_context, report_year, completed_month_count)
 
     payload = {
         "model": os.getenv("OPENAI_MODEL", "gpt-4.1"),
@@ -145,4 +146,4 @@ def generate_executive_analysis(
             body = json.loads(resp.read().decode("utf-8"))
         return body["choices"][0]["message"]["content"]
     except Exception:
-        return _fallback_analysis(rows, headers, trend_context, report_year)
+        return _fallback_analysis(rows, headers, trend_context, report_year, completed_month_count)

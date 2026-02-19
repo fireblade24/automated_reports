@@ -93,6 +93,7 @@ If your OS requires native libraries for WeasyPrint, install them per the offici
 
 - If `OPENAI_API_KEY` is set, analysis is generated via OpenAI chat completions REST API.
 - The analysis is constrained to completed months in the 2026 report year, even though the table shows all 12 months for layout.
+- Completed-month detection is dynamic: for current-year reports it uses calendar completed months; for backfilled/future-year datasets it uses the latest available month in that report year.
 - Prior-year (2025) S-1/F-1 data is loaded as continuity context so trend commentary does not restart at 2026.
 - Otherwise, a deterministic local fallback analysis is generated.
 
