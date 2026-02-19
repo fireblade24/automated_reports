@@ -15,7 +15,7 @@ BigQuery table:
 
 Fields used for this POC:
 
-- `standardized_name` (filing agent)
+- `standardized_name` (primary filing agent; falls back to `filingAgentLabel` if missing)
 - `filingDate` (month)
 - `formType` (S-1/F-1 bucket, including common variants like `S-1/A` and `F-1/A`)
 - `accessionNumber` (distinct filing count)

@@ -17,6 +17,10 @@ def is_s1_f1_form(form_type: str) -> bool:
     return normalized.startswith(S1_F1_PREFIXES)
 
 
+def get_agent_name(row: Dict[str, str]) -> str:
+    return ((row.get("standardized_name") or "").strip() or (row.get("filingAgentLabel") or "").strip())
+
+
 @dataclass
 class DataConfig:
     project: str = "sec-edgar-ralph"
@@ -72,6 +76,7 @@ def get_bigquery_sql(config: DataConfig) -> str:
     return f"""
 SELECT
   standardized_name,
+  filingAgentLabel,
   filingDate,
   formType,
   accessionNumber
@@ -125,10 +130,13 @@ def load_from_csv(path: str) -> List[Dict[str, str]]:
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
-    required = {"standardized_name", "filingDate", "formType", "accessionNumber"}
-    missing = required.difference(rows[0].keys() if rows else set())
+    keys = set(rows[0].keys()) if rows else set()
+    required = {"filingDate", "formType", "accessionNumber"}
+    missing = required.difference(keys)
     if missing:
         raise ValueError(f"CSV is missing required columns: {sorted(missing)}")
+    if not ({"standardized_name", "filingAgentLabel"} & keys):
+        raise ValueError("CSV must include either `standardized_name` or `filingAgentLabel`")
     return rows
 
 
@@ -144,7 +152,7 @@ def aggregate_s1_f1_monthly(
         form_type = (row.get("formType") or "").strip()
         if not is_s1_f1_form(form_type):
             continue
-        agent = (row.get("standardized_name") or "").strip()
+        agent = get_agent_name(row)
         accession = (row.get("accessionNumber") or "").strip()
         filing_date = _parse_date((row.get("filingDate") or "").strip())
         if not agent or not accession or not filing_date:
