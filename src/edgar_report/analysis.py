@@ -39,7 +39,7 @@ def _build_prior_year_context(raw_rows: list[dict[str, str]], report_year: int) 
         if filing_date.year != prior_year:
             continue
 
-        if comparable_month_limit and filing_date.month > comparable_month_limit:
+        if filing_date.month > comparable_month_limit:
             continue
 
         counts_by_month[filing_date.month].add(accession)
