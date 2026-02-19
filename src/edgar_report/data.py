@@ -18,7 +18,7 @@ def is_s1_f1_form(form_type: str) -> bool:
 
 
 def get_agent_name(row: Dict[str, str]) -> str:
-    return ((row.get("standardized_name") or "").strip() or (row.get("filingAgentLabel") or "").strip())
+    return (row.get("standardized_name") or "").strip()
 
 
 @dataclass
@@ -75,7 +75,6 @@ def get_bigquery_sql(config: DataConfig) -> str:
     return f"""
 SELECT
   standardized_name,
-  filingAgentLabel,
   filingDate,
   formType,
   accessionNumber
@@ -105,6 +104,7 @@ def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
         "query",
         "--use_legacy_sql=false",
         "--format=csv",
+        "--max_rows=1000000",
         f"--location={config.location}",
         f"--project_id={config.project}",
         sql,
@@ -134,8 +134,8 @@ def load_from_csv(path: str) -> List[Dict[str, str]]:
     missing = required.difference(keys)
     if missing:
         raise ValueError(f"CSV is missing required columns: {sorted(missing)}")
-    if not ({"standardized_name", "filingAgentLabel"} & keys):
-        raise ValueError("CSV must include either `standardized_name` or `filingAgentLabel`")
+    if "standardized_name" not in keys:
+        raise ValueError("CSV must include `standardized_name`")
     return rows
 
 
