@@ -101,13 +101,14 @@ def _build_simple_pdf(
     rows: list[list[str]],
     analysis_text: str,
     report_year: int,
+    report_label: str = "S-1/F-1",
     comparison_tables: list[tuple[int, list[str], list[list[str]]]] | None = None,
 ) -> None:
     width, height = 792, 612
     pages: list[PageCanvas] = []
 
     page = _new_page(pages)
-    page.text(30, 580, 18, f"EDGAR Agents S-1/F-1 Monthly Filing Report ({report_year})")
+    page.text(30, 580, 18, f"EDGAR Agents {report_label} Monthly Filing Report ({report_year})")
     page.text(30, 560, 11, "12-month landscape table includes Jan-Dec, with row and column totals.")
 
     col_widths = [150] + [42] * 12 + [50]
@@ -140,11 +141,11 @@ def _build_simple_pdf(
                 page.text(x_positions[i] + 2, y_local, 7, str(cell))
             y_local -= 12
 
-    render_table(f"{report_year} S-1/F-1 Filing Volume by Agent", headers, rows)
+    render_table(f"{report_year} {report_label} Filing Volume by Agent", headers, rows)
 
     for comp_year, comp_headers, comp_rows in comparison_tables or []:
         page = _new_page(pages)
-        render_table(f"{comp_year} S-1/F-1 Filing Volume by Agent", comp_headers, comp_rows)
+        render_table(f"{comp_year} {report_label} Filing Volume by Agent", comp_headers, comp_rows)
 
     page = _new_page(pages)
     page.text(30, 580, 14, "Executive Analysis")
@@ -224,6 +225,7 @@ def _build_weasy_html(
     rows: list[list[str]],
     analysis_text: str,
     report_year: int,
+    report_label: str = "S-1/F-1",
     comparison_tables: list[tuple[int, list[str], list[list[str]]]] | None = None,
 ) -> str:
     def table_html(table_headers: list[str], table_rows: list[list[str]], year_label: int) -> str:
@@ -235,7 +237,7 @@ def _build_weasy_html(
                 f"<tr class='{css_class}'>" + "".join(f"<td>{html.escape(str(cell))}</td>" for cell in row) + "</tr>"
             )
         return (
-            f"<h2>{year_label} S-1/F-1 Filing Volume by Agent</h2>"
+            f"<h2>{year_label} {report_label} Filing Volume by Agent</h2>"
             f"<table><thead><tr>{head_cells}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
         )
 
@@ -339,7 +341,7 @@ def _build_weasy_html(
   </style>
 </head>
 <body>
-  <h1>EDGAR Agents S-1/F-1 Monthly Filing Report ({report_year})</h1>
+  <h1>EDGAR Agents {report_label} Monthly Filing Report ({report_year})</h1>
   <p class='subtitle'>12-month landscape table includes Jan-Dec, with row and column totals.</p>
 
   {''.join(table_sections)}
@@ -357,11 +359,12 @@ def _build_weasy_pdf(
     rows: list[list[str]],
     analysis_text: str,
     report_year: int,
+    report_label: str = "S-1/F-1",
     comparison_tables: list[tuple[int, list[str], list[list[str]]]] | None = None,
 ) -> None:
     from weasyprint import HTML
 
-    html_doc = _build_weasy_html(headers, rows, analysis_text, report_year, comparison_tables)
+    html_doc = _build_weasy_html(headers, rows, analysis_text, report_year, report_label, comparison_tables)
     HTML(string=html_doc).write_pdf(output_path)
 
 
@@ -371,6 +374,7 @@ def build_pdf(
     rows: list[list[str]],
     analysis_text: str,
     report_year: int,
+    report_label: str = "S-1/F-1",
     comparison_tables: list[tuple[int, list[str], list[list[str]]]] | None = None,
     engine: str = "auto",
 ) -> str:
@@ -379,11 +383,11 @@ def build_pdf(
 
     if engine in {"auto", "weasyprint"}:
         try:
-            _build_weasy_pdf(output_path, headers, rows, analysis_text, report_year, comparison_tables)
+            _build_weasy_pdf(output_path, headers, rows, analysis_text, report_year, report_label, comparison_tables)
             return "weasyprint"
         except Exception:
             if engine == "weasyprint":
                 raise
 
-    _build_simple_pdf(output_path, headers, rows, analysis_text, report_year, comparison_tables)
+    _build_simple_pdf(output_path, headers, rows, analysis_text, report_year, report_label, comparison_tables)
     return "simple"

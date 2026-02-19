@@ -9,16 +9,22 @@ from datetime import date, datetime
 from typing import Dict, List, Tuple
 
 MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-S1_F1_PREFIXES = ("S-1", "F-1")
+S1_F1_FORMS = {"S-1", "F-1"}
+TEN_K_TEN_Q_FORMS = {"10-K", "10-Q"}
+ALL_SUPPORTED_FORMS = S1_F1_FORMS | TEN_K_TEN_Q_FORMS
+
+
+def is_form_in_bucket(form_type: str, allowed_forms: set[str]) -> bool:
+    normalized = (form_type or "").strip().upper()
+    return normalized in allowed_forms
 
 
 def is_s1_f1_form(form_type: str) -> bool:
-    normalized = (form_type or "").strip().upper()
-    return normalized.startswith(S1_F1_PREFIXES)
+    return is_form_in_bucket(form_type, S1_F1_FORMS)
 
 
 def get_agent_name(row: Dict[str, str]) -> str:
-    return ((row.get("standardized_name") or "").strip() or (row.get("filingAgentLabel") or "").strip())
+    return (row.get("standardized_name") or "").strip()
 
 
 @dataclass
@@ -72,17 +78,15 @@ def _resolve_report_cutoff(
 
 def get_bigquery_sql(config: DataConfig) -> str:
     table_ref = f"`{config.project}.{config.dataset}.{config.table}`"
-    prior_year = config.report_year - 1
     return f"""
 SELECT
   standardized_name,
-  filingAgentLabel,
   filingDate,
   formType,
   accessionNumber
 FROM {table_ref}
-WHERE EXTRACT(YEAR FROM filingDate) IN ({prior_year}, {config.report_year})
-  AND (STARTS_WITH(UPPER(formType), 'S-1') OR STARTS_WITH(UPPER(formType), 'F-1'))
+WHERE EXTRACT(YEAR FROM filingDate) = {config.report_year}
+  AND UPPER(formType) IN ('S-1', 'F-1', '10-K', '10-Q')
   AND standardized_name IS NOT NULL
   AND accessionNumber IS NOT NULL
 ORDER BY filingDate, standardized_name, accessionNumber
@@ -106,6 +110,7 @@ def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
         "query",
         "--use_legacy_sql=false",
         "--format=csv",
+        "--max_rows=1000000",
         f"--location={config.location}",
         f"--project_id={config.project}",
         sql,
@@ -135,13 +140,14 @@ def load_from_csv(path: str) -> List[Dict[str, str]]:
     missing = required.difference(keys)
     if missing:
         raise ValueError(f"CSV is missing required columns: {sorted(missing)}")
-    if not ({"standardized_name", "filingAgentLabel"} & keys):
-        raise ValueError("CSV must include either `standardized_name` or `filingAgentLabel`")
+    if "standardized_name" not in keys:
+        raise ValueError("CSV must include `standardized_name`")
     return rows
 
 
-def aggregate_s1_f1_monthly(
+def aggregate_monthly_by_forms(
     raw_rows: List[Dict[str, str]],
+    allowed_forms: set[str],
     report_year: int = 2026,
     force_full_year: bool = False,
 ) -> Tuple[List[str], List[List[str]]]:
@@ -150,7 +156,7 @@ def aggregate_s1_f1_monthly(
 
     for row in raw_rows:
         form_type = (row.get("formType") or "").strip()
-        if not is_s1_f1_form(form_type):
+        if not is_form_in_bucket(form_type, allowed_forms):
             continue
         agent = get_agent_name(row)
         accession = (row.get("accessionNumber") or "").strip()
@@ -181,3 +187,29 @@ def aggregate_s1_f1_monthly(
 
     rows.append(["Total", *[str(v) for v in col_totals], str(grand_total)])
     return headers, rows
+
+
+def aggregate_s1_f1_monthly(
+    raw_rows: List[Dict[str, str]],
+    report_year: int = 2026,
+    force_full_year: bool = False,
+) -> Tuple[List[str], List[List[str]]]:
+    return aggregate_monthly_by_forms(
+        raw_rows,
+        allowed_forms=S1_F1_FORMS,
+        report_year=report_year,
+        force_full_year=force_full_year,
+    )
+
+
+def aggregate_10k_10q_monthly(
+    raw_rows: List[Dict[str, str]],
+    report_year: int = 2026,
+    force_full_year: bool = False,
+) -> Tuple[List[str], List[List[str]]]:
+    return aggregate_monthly_by_forms(
+        raw_rows,
+        allowed_forms=TEN_K_TEN_Q_FORMS,
+        report_year=report_year,
+        force_full_year=force_full_year,
+    )
