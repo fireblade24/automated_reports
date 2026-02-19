@@ -17,7 +17,7 @@ Fields used for this POC:
 
 - `standardized_name` (primary filing agent)
 - `filingDate` (month)
-- `formType` (S-1/F-1 bucket, including common variants like `S-1/A` and `F-1/A`)
+- `formType` (strictly `S-1` and `F-1` only; no amended variants)
 - `accessionNumber` (distinct filing count)
 
 ## Run location (important)
