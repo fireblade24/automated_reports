@@ -1,0 +1,4 @@
+# No mandatory third-party dependencies for the POC runtime.
+# Optional integrations:
+# - OpenAI API via HTTPS (no SDK required)
+# - BigQuery via `bq` CLI
