@@ -17,8 +17,18 @@ Fields used for this POC:
 
 - `standardized_name` (filing agent)
 - `filingDate` (month)
-- `formType` (S-1/F-1 bucket)
+- `formType` (S-1/F-1 bucket, including common variants like `S-1/A` and `F-1/A`)
 - `accessionNumber` (distinct filing count)
+
+## Run location (important)
+
+Run commands from the repository root:
+
+```bash
+cd /workspace/automated_reports
+```
+
+The module import relies on `PYTHONPATH=src`, so running from another folder can cause import/path issues.
 
 ## Connect to BigQuery and pull real data
 
@@ -78,7 +88,11 @@ The CLI now supports multiple PDF engines:
 Example:
 
 ```bash
-PYTHONPATH=src python -m edgar_report.main   --from-csv sample/sample_filings.csv   --pdf-engine auto   --output output/edgar_s1_f1_report_2026.pdf   --year 2026
+PYTHONPATH=src python -m edgar_report.main \
+  --from-csv sample/sample_filings.csv \
+  --pdf-engine auto \
+  --output output/edgar_s1_f1_report_2026.pdf \
+  --year 2026
 ```
 
 ### WeasyPrint setup (optional)

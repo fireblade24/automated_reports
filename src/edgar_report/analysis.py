@@ -6,7 +6,7 @@ from collections import defaultdict
 from textwrap import dedent
 from urllib import request
 
-from edgar_report.data import S1_F1_FORMS, _parse_date, get_completed_month_count
+from edgar_report.data import _parse_date, get_completed_month_count, is_s1_f1_form
 
 SYSTEM_PROMPT = (
     "You are the Chief Strategy Officer at EDGAR Agents. Provide executive-level strategic "
@@ -28,7 +28,7 @@ def _build_prior_year_context(raw_rows: list[dict[str, str]], report_year: int) 
 
     counts_by_month: dict[int, set[str]] = defaultdict(set)
     for row in raw_rows:
-        if (row.get("formType") or "").strip() not in S1_F1_FORMS:
+        if not is_s1_f1_form((row.get("formType") or "").strip()):
             continue
 
         accession = (row.get("accessionNumber") or "").strip()

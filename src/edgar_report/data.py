@@ -9,7 +9,12 @@ from datetime import date, datetime
 from typing import Dict, List, Tuple
 
 MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-S1_F1_FORMS = {"S-1", "F-1"}
+S1_F1_PREFIXES = ("S-1", "F-1")
+
+
+def is_s1_f1_form(form_type: str) -> bool:
+    normalized = (form_type or "").strip().upper()
+    return normalized.startswith(S1_F1_PREFIXES)
 
 
 @dataclass
@@ -65,7 +70,7 @@ SELECT
   accessionNumber
 FROM {table_ref}
 WHERE EXTRACT(YEAR FROM filingDate) IN ({prior_year}, {config.report_year})
-  AND formType IN ('S-1', 'F-1')
+  AND (STARTS_WITH(UPPER(formType), 'S-1') OR STARTS_WITH(UPPER(formType), 'F-1'))
   AND standardized_name IS NOT NULL
   AND accessionNumber IS NOT NULL
 ORDER BY filingDate, standardized_name, accessionNumber
@@ -126,7 +131,7 @@ def aggregate_s1_f1_monthly(raw_rows: List[Dict[str, str]], report_year: int = 2
 
     for row in raw_rows:
         form_type = (row.get("formType") or "").strip()
-        if form_type not in S1_F1_FORMS:
+        if not is_s1_f1_form(form_type):
             continue
         agent = (row.get("standardized_name") or "").strip()
         accession = (row.get("accessionNumber") or "").strip()
