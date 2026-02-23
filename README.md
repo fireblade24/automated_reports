@@ -86,6 +86,7 @@ PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv 
 The CLI now supports multiple PDF engines:
 
 - `--pdf-engine auto` (default): tries WeasyPrint first, then falls back to built-in renderer.
+- when auto fallback happens, a stderr log line is emitted with the exact WeasyPrint failure reason.
 - `--pdf-engine simple`: always use built-in no-dependency renderer.
 - `--pdf-engine weasyprint`: require WeasyPrint (fails fast if unavailable).
 

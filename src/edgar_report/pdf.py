@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import sys
 import textwrap
 
 
@@ -385,7 +386,12 @@ def build_pdf(
         try:
             _build_weasy_pdf(output_path, headers, rows, analysis_text, report_year, report_label, comparison_tables)
             return "weasyprint"
-        except Exception:
+        except Exception as exc:
+            print(
+                f"[pdf] WeasyPrint unavailable for '{report_label}' ({output_path}); "
+                f"falling back to simple engine. reason: {exc.__class__.__name__}: {exc}",
+                file=sys.stderr,
+            )
             if engine == "weasyprint":
                 raise
 
