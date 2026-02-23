@@ -6,19 +6,79 @@ import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-S1_F1_PREFIXES = ("S-1", "F-1")
+
+SEC_16_FORMS = {"3", "3/A", "4", "4/A", "5", "5/A"}
+
+MF_FORMS = {
+    item.strip().upper()
+    for item in (
+        "487,497,24F-2NT,24F-2NT/A,40-17F1,40-17F1/A,40-17F2,40-17F2/A,40-17G,40-17G/A,40-17GCS,40-24B2,"
+        "40-24B2/A,40-33,40-33/A,40-6B,40-6B/A,40-8B25,40-8F-2,40-8F-2/A,40-APP,40-APP/A,40-F,40-F/A,"
+        "40FR12B,40FR12B/A,40FR12G,40FR12G/A,40-OIP,40-OIP/A,485APOS,485BPOS,485BXT,486APOS,486BPOS,"
+        "486BXT,497AD,497H2,497J,497K,N-14,N-14 8C,N-14 8C/A,N-14/A,N-14MEF,N-18F1,N-18F1/A,N-1A,N-1A/A,"
+        "N-2,N-2/A,N-23C-2,N-23C-2/A,N-23C3A,N-23C3A/A,N-23C3B,N-23C3C,N-23C3C/A,N-2ASR,N-2MEF,N-30B-2,"
+        "N-30D,N-30D/A,N-4,N-4/A,N-54A,N-54A/A,N-54C,N-6,N-6/A,N-6F,N-6F/A,N-8A,N-8A/A,N-8B-2,N-8B-2/A,"
+        "N-8B-4,N-8F,N-8F/A,N-CEN,N-CEN/A,N-CR,N-CR/A,N-CSR,N-CSR/A,N-CSRS,N-CSRS/A,N-MFP,N-MFP/A,"
+        "N-MFP1,N-MFP1/A,N-MFP2,N-MFP2/A,NPORT-EX,NPORT-EX/A,NPORT-P,NPORT-P/A,N-PX,N-PX/A,N-Q,N-Q/A,"
+        "NRSRO-CE,NRSRO-CE/A,NRSRO-UPD,NSAR-A,NSAR-A/A,NSAR-AT,NSAR-B,NSAR-B/A,NSAR-BT,NSAR-U,NSAR-U/A,"
+        "POS 8C,POS AMI,N-MFP3,N-MFP3/A"
+    ).split(",")
+    if item.strip()
+}
 
 
-def is_s1_f1_form(form_type: str) -> bool:
-    normalized = (form_type or "").strip().upper()
-    return normalized.startswith(S1_F1_PREFIXES)
+@dataclass(frozen=True)
+class FilingBucket:
+    name: str
+    slug: str
+    matcher: Callable[[Dict[str, str]], bool]
+
+
+def _normalized_form(row: Dict[str, str]) -> str:
+    return (row.get("formType") or "").strip().upper()
+
+
+def _match_exact_forms(allowed_forms: set[str]) -> Callable[[Dict[str, str]], bool]:
+    normalized = {f.upper() for f in allowed_forms}
+    return lambda row: _normalized_form(row) in normalized
+
+
+def _match_all(_: Dict[str, str]) -> bool:
+    return True
+
+
+def _match_all_but_sec16(row: Dict[str, str]) -> bool:
+    return _normalized_form(row) not in SEC_16_FORMS
+
+
+def _match_spac_s1(row: Dict[str, str]) -> bool:
+    return _normalized_form(row) == "S-1" and (row.get("company_sicDescription") or "").strip().upper() == "BLANK CHECKS"
+
+
+def get_filing_buckets() -> list[FilingBucket]:
+    return [
+        FilingBucket(name="S-1/F-1", slug="s1_f1", matcher=_match_exact_forms({"S-1", "F-1"})),
+        FilingBucket(name="10-K/10-Q", slug="10k_10q", matcher=_match_exact_forms({"10-K", "10-Q"})),
+        FilingBucket(name="All", slug="all", matcher=_match_all),
+        FilingBucket(name="All but Sec 16", slug="all_but_sec16", matcher=_match_all_but_sec16),
+        FilingBucket(name="20-Fs", slug="20f", matcher=_match_exact_forms({"20-F"})),
+        FilingBucket(name="S-4 & F-4", slug="s4_f4", matcher=_match_exact_forms({"S-4", "F-4"})),
+        FilingBucket(name="SPAC S-1s", slug="spac_s1", matcher=_match_spac_s1),
+        FilingBucket(name="DEF14As", slug="def14a", matcher=_match_exact_forms({"DEF14A"})),
+        FilingBucket(name="MF", slug="mf", matcher=_match_exact_forms(MF_FORMS)),
+        FilingBucket(name="485BPOS", slug="485bpos", matcher=_match_exact_forms({"485BPOS"})),
+        FilingBucket(name="N-2", slug="n2", matcher=_match_exact_forms({"N-2"})),
+        FilingBucket(name="N-CSR", slug="n_csr", matcher=_match_exact_forms({"N-CSR"})),
+        FilingBucket(name="N-PORT", slug="n_port", matcher=_match_exact_forms({"N-PORT"})),
+        FilingBucket(name="N-CEN", slug="n_cen", matcher=_match_exact_forms({"N-CEN"})),
+    ]
 
 
 def get_agent_name(row: Dict[str, str]) -> str:
-    return ((row.get("standardized_name") or "").strip() or (row.get("filingAgentLabel") or "").strip())
+    return (row.get("standardized_name") or "").strip()
 
 
 @dataclass
@@ -72,17 +132,15 @@ def _resolve_report_cutoff(
 
 def get_bigquery_sql(config: DataConfig) -> str:
     table_ref = f"`{config.project}.{config.dataset}.{config.table}`"
-    prior_year = config.report_year - 1
     return f"""
 SELECT
   standardized_name,
-  filingAgentLabel,
   filingDate,
   formType,
-  accessionNumber
+  accessionNumber,
+  company_sicDescription
 FROM {table_ref}
-WHERE EXTRACT(YEAR FROM filingDate) IN ({prior_year}, {config.report_year})
-  AND (STARTS_WITH(UPPER(formType), 'S-1') OR STARTS_WITH(UPPER(formType), 'F-1'))
+WHERE EXTRACT(YEAR FROM filingDate) = {config.report_year}
   AND standardized_name IS NOT NULL
   AND accessionNumber IS NOT NULL
 ORDER BY filingDate, standardized_name, accessionNumber
@@ -106,6 +164,7 @@ def load_from_bigquery(config: DataConfig) -> List[Dict[str, str]]:
         "query",
         "--use_legacy_sql=false",
         "--format=csv",
+        "--max_rows=1000000",
         f"--location={config.location}",
         f"--project_id={config.project}",
         sql,
@@ -135,13 +194,14 @@ def load_from_csv(path: str) -> List[Dict[str, str]]:
     missing = required.difference(keys)
     if missing:
         raise ValueError(f"CSV is missing required columns: {sorted(missing)}")
-    if not ({"standardized_name", "filingAgentLabel"} & keys):
-        raise ValueError("CSV must include either `standardized_name` or `filingAgentLabel`")
+    if "standardized_name" not in keys:
+        raise ValueError("CSV must include `standardized_name`")
     return rows
 
 
-def aggregate_s1_f1_monthly(
+def aggregate_monthly_by_bucket(
     raw_rows: List[Dict[str, str]],
+    bucket: FilingBucket,
     report_year: int = 2026,
     force_full_year: bool = False,
 ) -> Tuple[List[str], List[List[str]]]:
@@ -149,8 +209,7 @@ def aggregate_s1_f1_monthly(
     month_agent_accessions: Dict[Tuple[str, int], set] = defaultdict(set)
 
     for row in raw_rows:
-        form_type = (row.get("formType") or "").strip()
-        if not is_s1_f1_form(form_type):
+        if not bucket.matcher(row):
             continue
         agent = get_agent_name(row)
         accession = (row.get("accessionNumber") or "").strip()
