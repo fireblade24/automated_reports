@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from textwrap import dedent
 from urllib import request
 
@@ -109,5 +110,10 @@ def generate_executive_analysis(
         with request.urlopen(req, timeout=45) as resp:
             body = json.loads(resp.read().decode("utf-8"))
         return body["choices"][0]["message"]["content"]
-    except Exception:
+    except Exception as exc:
+        print(
+            f"[analysis] OpenAI request failed for '{bucket_label}' ({report_year}); "
+            f"falling back to local analysis. reason: {exc.__class__.__name__}: {exc}",
+            file=sys.stderr,
+        )
         return _fallback_analysis(rows, headers, report_year, completed_month_count, bucket_label)
