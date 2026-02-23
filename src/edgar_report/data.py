@@ -67,12 +67,12 @@ def get_filing_buckets() -> list[FilingBucket]:
         FilingBucket(name="20-Fs", slug="20f", matcher=_match_exact_forms({"20-F"})),
         FilingBucket(name="S-4 & F-4", slug="s4_f4", matcher=_match_exact_forms({"S-4", "F-4"})),
         FilingBucket(name="SPAC S-1s", slug="spac_s1", matcher=_match_spac_s1),
-        FilingBucket(name="DEF14As", slug="def14a", matcher=_match_exact_forms({"DEF14A"})),
+        FilingBucket(name="DEF14As", slug="def14a", matcher=_match_exact_forms({"DEF 14A"})),
         FilingBucket(name="MF", slug="mf", matcher=_match_exact_forms(MF_FORMS)),
         FilingBucket(name="485BPOS", slug="485bpos", matcher=_match_exact_forms({"485BPOS"})),
         FilingBucket(name="N-2", slug="n2", matcher=_match_exact_forms({"N-2"})),
         FilingBucket(name="N-CSR", slug="n_csr", matcher=_match_exact_forms({"N-CSR"})),
-        FilingBucket(name="N-PORT", slug="n_port", matcher=_match_exact_forms({"N-PORT"})),
+        FilingBucket(name="N-PORT", slug="n_port", matcher=_match_exact_forms({"NPORT-P"})),
         FilingBucket(name="N-CEN", slug="n_cen", matcher=_match_exact_forms({"N-CEN"})),
     ]
 
