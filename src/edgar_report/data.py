@@ -240,3 +240,29 @@ def aggregate_monthly_by_bucket(
 
     rows.append(["Total", *[str(v) for v in col_totals], str(grand_total)])
     return headers, rows
+
+
+def aggregate_s1_f1_monthly(
+    raw_rows: List[Dict[str, str]],
+    report_year: int = 2026,
+    force_full_year: bool = False,
+) -> Tuple[List[str], List[List[str]]]:
+    return aggregate_monthly_by_forms(
+        raw_rows,
+        allowed_forms=S1_F1_FORMS,
+        report_year=report_year,
+        force_full_year=force_full_year,
+    )
+
+
+def aggregate_10k_10q_monthly(
+    raw_rows: List[Dict[str, str]],
+    report_year: int = 2026,
+    force_full_year: bool = False,
+) -> Tuple[List[str], List[List[str]]]:
+    return aggregate_monthly_by_forms(
+        raw_rows,
+        allowed_forms=TEN_K_TEN_Q_FORMS,
+        report_year=report_year,
+        force_full_year=force_full_year,
+    )
