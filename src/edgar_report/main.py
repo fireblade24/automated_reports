@@ -4,13 +4,7 @@ import argparse
 from pathlib import Path
 
 from edgar_report.analysis import generate_executive_analysis
-from edgar_report.data import (
-    DataConfig,
-    aggregate_10k_10q_monthly,
-    aggregate_s1_f1_monthly,
-    load_from_bigquery,
-    load_from_csv,
-)
+from edgar_report.data import DataConfig, aggregate_monthly_by_bucket, get_filing_buckets, load_from_bigquery, load_from_csv
 from edgar_report.pdf import build_pdf
 
 
@@ -32,19 +26,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _resolve_output_paths(output_arg: str, year: int) -> tuple[Path, Path]:
+def _resolve_output_path(output_arg: str, year: int, slug: str) -> Path:
     output_path = Path(output_arg)
     if output_path.suffix.lower() == ".pdf":
         base = output_path.with_suffix("")
-        s1f1_path = base.with_name(f"{base.name}_s1_f1_{year}.pdf")
-        tenk_path = base.with_name(f"{base.name}_10k_10q_{year}.pdf")
-        return s1f1_path, tenk_path
+        return base.with_name(f"{base.name}_{slug}_{year}.pdf")
 
     output_path.mkdir(parents=True, exist_ok=True)
-    return (
-        output_path / f"edgar_s1_f1_report_{year}.pdf",
-        output_path / f"edgar_10k_10q_report_{year}.pdf",
-    )
+    return output_path / f"edgar_{slug}_report_{year}.pdf"
 
 
 def main() -> None:
@@ -62,49 +51,30 @@ def main() -> None:
     else:
         raw = load_from_bigquery(config)
 
-    s1_headers, s1_rows = aggregate_s1_f1_monthly(raw, report_year=args.year)
-    s1_analysis = generate_executive_analysis(
-        s1_headers,
-        s1_rows,
-        raw_rows=raw,
-        report_year=args.year,
-        bucket_label="S-1/F-1",
-    )
+    for bucket in get_filing_buckets():
+        headers, rows = aggregate_monthly_by_bucket(raw, bucket=bucket, report_year=args.year)
+        analysis = generate_executive_analysis(
+            headers,
+            rows,
+            raw_rows=raw,
+            report_year=args.year,
+            bucket_label=bucket.name,
+        )
 
-    ten_headers, ten_rows = aggregate_10k_10q_monthly(raw, report_year=args.year)
-    ten_analysis = generate_executive_analysis(
-        ten_headers,
-        ten_rows,
-        raw_rows=raw,
-        report_year=args.year,
-        bucket_label="10-K/10-Q",
-    )
+        output_path = _resolve_output_path(args.output, args.year, bucket.slug)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    s1_output_path, ten_output_path = _resolve_output_paths(args.output, args.year)
-    s1_output_path.parent.mkdir(parents=True, exist_ok=True)
-    ten_output_path.parent.mkdir(parents=True, exist_ok=True)
+        selected_engine = build_pdf(
+            str(output_path),
+            headers,
+            rows,
+            analysis,
+            report_year=args.year,
+            report_label=bucket.name,
+            engine=args.pdf_engine,
+        )
 
-    s1_engine = build_pdf(
-        str(s1_output_path),
-        s1_headers,
-        s1_rows,
-        s1_analysis,
-        report_year=args.year,
-        report_label="S-1/F-1",
-        engine=args.pdf_engine,
-    )
-    ten_engine = build_pdf(
-        str(ten_output_path),
-        ten_headers,
-        ten_rows,
-        ten_analysis,
-        report_year=args.year,
-        report_label="10-K/10-Q",
-        engine=args.pdf_engine,
-    )
-
-    print(f"Report created: {s1_output_path} (engine: {s1_engine})")
-    print(f"Report created: {ten_output_path} (engine: {ten_engine})")
+        print(f"Report created: {output_path} (engine: {selected_engine})")
 
 
 if __name__ == "__main__":

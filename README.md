@@ -1,11 +1,25 @@
 # automated_reports
 
-Automates monthly EDGAR reports by filing agent for two buckets:
+Automates monthly EDGAR reports by filing agent for multiple filing buckets.
 
-- **S-1/F-1** (exact forms only)
-- **10-K/10-Q** (exact forms only)
+Current buckets:
 
-Each run produces two PDF outputs (one per bucket) with:
+- S-1/F-1
+- 10-K/10-Q
+- All
+- All but Sec 16
+- 20-Fs
+- S-4 & F-4
+- SPAC S-1s (S-1 where `company_sicDescription = Blank Checks`)
+- DEF14As
+- MF
+- 485BPOS
+- N-2
+- N-CSR
+- N-PORT
+- N-CEN
+
+Each run produces one PDF per bucket with:
 
 - completed months only for the report year
 - 12-month landscape table (Jan-Dec shown even when empty)
@@ -21,7 +35,7 @@ Fields used for this POC:
 
 - `standardized_name` (primary filing agent)
 - `filingDate` (month)
-- `formType` (strictly `S-1`, `F-1`, `10-K`, and `10-Q`; no amended variants)
+- `formType` (used to filter each configured bucket)
 - `accessionNumber` (distinct filing count)
 
 ## Run location (important)
@@ -158,5 +172,4 @@ PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv 
 
 Generated files (default):
 
-- `output/edgar_s1_f1_report_<year>.pdf`
-- `output/edgar_10k_10q_report_<year>.pdf`
+- one file per bucket, e.g. `output/edgar_s1_f1_report_<year>.pdf`, `output/edgar_10k_10q_report_<year>.pdf`, `output/edgar_all_report_<year>.pdf`, etc.
