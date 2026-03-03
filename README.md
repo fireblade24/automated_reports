@@ -19,7 +19,11 @@ Current buckets:
 - N-PORT
 - N-CEN
 
-Each run produces one PDF per bucket with:
+Each run produces two PDFs per bucket with:
+
+- standard view (grouped by `standardized_name`)
+- `byGroup` view (grouped by `filing_agent_group`)
+
 
 - completed months only for the report year
 - 12-month landscape table (Jan-Dec shown even when empty)
@@ -34,6 +38,7 @@ BigQuery table:
 Fields used for this POC:
 
 - `standardized_name` (primary filing agent)
+- `filing_agent_group` (group-level filing-agent field used by byGroup reports)
 - `filingDate` (month)
 - `formType` (used to filter each configured bucket)
 - `accessionNumber` (distinct filing count)
@@ -172,4 +177,4 @@ PYTHONPATH=src python -m edgar_report.main --from-csv sample/sample_filings.csv 
 
 Generated files (default):
 
-- one file per bucket, e.g. `output/edgar_s1_f1_report_<year>.pdf`, `output/edgar_10k_10q_report_<year>.pdf`, `output/edgar_all_report_<year>.pdf`, etc.
+- two files per bucket, e.g. `output/edgar_s1_f1_report_<year>.pdf` and `output/edgar_s1_f1_by_group_report_<year>.pdf` (same pattern for each bucket).

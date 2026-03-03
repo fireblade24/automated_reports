@@ -135,13 +135,14 @@ def get_bigquery_sql(config: DataConfig) -> str:
     return f"""
 SELECT
   standardized_name,
+  filing_agent_group,
   filingDate,
   formType,
   accessionNumber,
   company_sicDescription
 FROM {table_ref}
 WHERE EXTRACT(YEAR FROM filingDate) = {config.report_year}
-  AND standardized_name IS NOT NULL
+  AND (standardized_name IS NOT NULL OR filing_agent_group IS NOT NULL)
   AND accessionNumber IS NOT NULL
 ORDER BY filingDate, standardized_name, accessionNumber
 """.strip()
@@ -204,6 +205,7 @@ def aggregate_monthly_by_bucket(
     bucket: FilingBucket,
     report_year: int = 2026,
     force_full_year: bool = False,
+    agent_field: str = "standardized_name",
 ) -> Tuple[List[str], List[List[str]]]:
     cutoff = _resolve_report_cutoff(raw_rows, report_year, force_full_year=force_full_year)
     month_agent_accessions: Dict[Tuple[str, int], set] = defaultdict(set)
@@ -211,7 +213,7 @@ def aggregate_monthly_by_bucket(
     for row in raw_rows:
         if not bucket.matcher(row):
             continue
-        agent = get_agent_name(row)
+        agent = (row.get(agent_field) or "").strip()
         accession = (row.get("accessionNumber") or "").strip()
         filing_date = _parse_date((row.get("filingDate") or "").strip())
         if not agent or not accession or not filing_date:
@@ -226,7 +228,8 @@ def aggregate_monthly_by_bucket(
         {agent for agent, _ in month_agent_count.keys()},
         key=lambda agent: (-sum(month_agent_count.get((agent, m), 0) for m in range(1, 13)), agent),
     )
-    headers = ["Filing Agent", *MONTH_LABELS, "Total"]
+    first_col = "Filing Agent Group" if agent_field == "filing_agent_group" else "Filing Agent"
+    headers = [first_col, *MONTH_LABELS, "Total"]
     rows: List[List[str]] = []
 
     col_totals = [0] * 12

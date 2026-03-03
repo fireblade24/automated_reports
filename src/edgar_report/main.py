@@ -76,6 +76,36 @@ def main() -> None:
 
         print(f"Report created: {output_path} (engine: {selected_engine})")
 
+        group_headers, group_rows = aggregate_monthly_by_bucket(
+            raw,
+            bucket=bucket,
+            report_year=args.year,
+            agent_field="filing_agent_group",
+        )
+        group_label = f"{bucket.name} byGroup"
+        group_analysis = generate_executive_analysis(
+            group_headers,
+            group_rows,
+            raw_rows=raw,
+            report_year=args.year,
+            bucket_label=group_label,
+        )
+
+        group_output_path = _resolve_output_path(args.output, args.year, f"{bucket.slug}_by_group")
+        group_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        group_engine = build_pdf(
+            str(group_output_path),
+            group_headers,
+            group_rows,
+            group_analysis,
+            report_year=args.year,
+            report_label=group_label,
+            engine=args.pdf_engine,
+        )
+
+        print(f"Report created: {group_output_path} (engine: {group_engine})")
+
 
 if __name__ == "__main__":
     main()
